@@ -36,10 +36,10 @@
 
 #if (LCD_DATA_BITS_MODE == 4)
 
-#define LCD_DB4_PIN_ID                 	3
-#define LCD_DB5_PIN_ID                 	4
-#define LCD_DB6_PIN_ID                 	5
-#define LCD_DB7_PIN_ID                 	6
+#define LCD_DB4_PIN_ID                 	4
+#define LCD_DB5_PIN_ID                 	5
+#define LCD_DB6_PIN_ID                 	6
+#define LCD_DB7_PIN_ID                 	7
 
 #endif
 

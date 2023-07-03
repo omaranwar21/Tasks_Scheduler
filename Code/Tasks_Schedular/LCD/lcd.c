@@ -23,7 +23,7 @@
  */
 void LCD_init(void)
 {
-	uint8 counter = 0;
+
 	/* Configure the direction for RS and E pins as output pins */
 	Gpio_ConfigPin(LCD_RS_PORT_ID, LCD_RS_PIN_ID, GPIO_OUTPUT, GPIO_PUSH_PULL, GPIO_NO_PULL_UP_DOWN);
 	Gpio_ConfigPin(LCD_E_PORT_ID, LCD_E_PIN_ID, GPIO_OUTPUT, GPIO_PUSH_PULL, GPIO_NO_PULL_UP_DOWN);
@@ -31,10 +31,10 @@ void LCD_init(void)
 
 #if(LCD_DATA_BITS_MODE == 4)
 	/* Configure 4 pins in the data port as output pins */
-	GPIO_setupPinDirection(LCD_DATA_PORT_ID,LCD_DB4_PIN_ID,PIN_OUTPUT);
-	GPIO_setupPinDirection(LCD_DATA_PORT_ID,LCD_DB5_PIN_ID,PIN_OUTPUT);
-	GPIO_setupPinDirection(LCD_DATA_PORT_ID,LCD_DB6_PIN_ID,PIN_OUTPUT);
-	GPIO_setupPinDirection(LCD_DATA_PORT_ID,LCD_DB7_PIN_ID,PIN_OUTPUT);
+	Gpio_ConfigPin(LCD_DATA_PORT_ID,LCD_DB4_PIN_ID, GPIO_OUTPUT, GPIO_PUSH_PULL, GPIO_NO_PULL_UP_DOWN);
+	Gpio_ConfigPin(LCD_DATA_PORT_ID,LCD_DB5_PIN_ID, GPIO_OUTPUT, GPIO_PUSH_PULL, GPIO_NO_PULL_UP_DOWN);
+	Gpio_ConfigPin(LCD_DATA_PORT_ID,LCD_DB6_PIN_ID, GPIO_OUTPUT, GPIO_PUSH_PULL, GPIO_NO_PULL_UP_DOWN);
+	Gpio_ConfigPin(LCD_DATA_PORT_ID,LCD_DB7_PIN_ID, GPIO_OUTPUT, GPIO_PUSH_PULL, GPIO_NO_PULL_UP_DOWN);
 
 	/* Send for 4 bit initialization of LCD  */
 	LCD_sendCommand(LCD_TWO_LINES_FOUR_BITS_MODE_INIT1);
@@ -45,6 +45,7 @@ void LCD_init(void)
 
 #elif(LCD_DATA_BITS_MODE == 8)
 	/* Configure the data port as output port */
+	uint8 counter = 0;
 	for (counter = LCD_DATA_PIN_ID; counter < (LCD_DATA_PIN_ID+LCD_DATA_BITS_MODE) ; ++counter) {
 		Gpio_ConfigPin(LCD_DATA_PORT_ID, counter, GPIO_OUTPUT, GPIO_PUSH_PULL, GPIO_NO_PULL_UP_DOWN);
 	}
@@ -64,35 +65,36 @@ void LCD_init(void)
  */
 void LCD_sendCommand(uint8 command)
 {
-	uint8 counter = 0;
+
 	GPIO_WritePinValue(LCD_RS_PORT_ID,LCD_RS_PIN_ID,LOW); /* Instruction Mode RS=0 */
 	delay_ms(1); /* delay for processing Tas = 50ns */
 	GPIO_WritePinValue(LCD_E_PORT_ID,LCD_E_PIN_ID,HIGH); /* Enable LCD E=1 */
 	delay_ms(1); /* delay for processing Tpw - Tdws = 190ns */
 
 #if(LCD_DATA_BITS_MODE == 4)
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB4_PIN_ID,GET_BIT(command,4));
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB5_PIN_ID,GET_BIT(command,5));
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB6_PIN_ID,GET_BIT(command,6));
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB7_PIN_ID,GET_BIT(command,7));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB4_PIN_ID,READ_BIT(command,4));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB5_PIN_ID,READ_BIT(command,5));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB6_PIN_ID,READ_BIT(command,6));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB7_PIN_ID,READ_BIT(command,7));
 
-	_delay_ms(1); /* delay for processing Tdsw = 100ns */
-	GPIO_writePin(LCD_E_PORT_ID,LCD_E_PIN_ID,LOGIC_LOW); /* Disable LCD E=0 */
-	_delay_ms(1); /* delay for processing Th = 13ns */
-	GPIO_writePin(LCD_E_PORT_ID,LCD_E_PIN_ID,LOGIC_HIGH); /* Enable LCD E=1 */
-	_delay_ms(1); /* delay for processing Tpw - Tdws = 190ns */
+	delay_ms(1); /* delay for processing Tdsw = 100ns */
+	GPIO_WritePinValue(LCD_E_PORT_ID,LCD_E_PIN_ID,LOW); /* Disable LCD E=0 */
+	delay_ms(1); /* delay for processing Th = 13ns */
+	GPIO_WritePinValue(LCD_E_PORT_ID,LCD_E_PIN_ID,HIGH); /* Enable LCD E=1 */
+	delay_ms(1); /* delay for processing Tpw - Tdws = 190ns */
 
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB4_PIN_ID,GET_BIT(command,0));
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB5_PIN_ID,GET_BIT(command,1));
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB6_PIN_ID,GET_BIT(command,2));
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB7_PIN_ID,GET_BIT(command,3));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB4_PIN_ID,READ_BIT(command,0));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB5_PIN_ID,READ_BIT(command,1));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB6_PIN_ID,READ_BIT(command,2));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB7_PIN_ID,READ_BIT(command,3));
 
-	_delay_ms(1); /* delay for processing Tdsw = 100ns */
-	GPIO_writePin(LCD_E_PORT_ID,LCD_E_PIN_ID,LOGIC_LOW); /* Disable LCD E=0 */
-	_delay_ms(1); /* delay for processing Th = 13ns */
+	delay_ms(1); /* delay for processing Tdsw = 100ns */
+	GPIO_WritePinValue(LCD_E_PORT_ID,LCD_E_PIN_ID,LOW); /* Disable LCD E=0 */
+	delay_ms(1); /* delay for processing Th = 13ns */
 
 #elif(LCD_DATA_BITS_MODE == 8)
 
+	uint8 counter = 0;
 	for (counter = 0; counter < 8 ; ++counter) {
 		Gpio_ConfigPin(LCD_DATA_PORT_ID, counter, GPIO_OUTPUT, GPIO_PUSH_PULL, GPIO_NO_PULL_UP_DOWN);
 		GPIO_WritePinValue(LCD_DATA_PORT_ID, counter, READ_BIT(command, counter));
@@ -110,34 +112,35 @@ void LCD_sendCommand(uint8 command)
  */
 void LCD_displayCharacter(uint8 data)
 {
-	uint8 counter = 0;
+
 	GPIO_WritePinValue(LCD_RS_PORT_ID,LCD_RS_PIN_ID,HIGH); /* Data Mode RS=1 */
 //	delay_ms(1); /* delay for processing Tas = 50ns */
 	GPIO_WritePinValue(LCD_E_PORT_ID,LCD_E_PIN_ID,HIGH); /* Enable LCD E=1 */
 //	delay_ms(1); /* delay for processing Tpw - Tdws = 190ns */
 
 #if(LCD_DATA_BITS_MODE == 4)
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB4_PIN_ID,GET_BIT(data,4));
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB5_PIN_ID,GET_BIT(data,5));
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB6_PIN_ID,GET_BIT(data,6));
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB7_PIN_ID,GET_BIT(data,7));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB4_PIN_ID,READ_BIT(data,4));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB5_PIN_ID,READ_BIT(data,5));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB6_PIN_ID,READ_BIT(data,6));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB7_PIN_ID,READ_BIT(data,7));
 
-	_delay_ms(1); /* delay for processing Tdsw = 100ns */
-	GPIO_writePin(LCD_E_PORT_ID,LCD_E_PIN_ID,LOGIC_LOW); /* Disable LCD E=0 */
-	_delay_ms(1); /* delay for processing Th = 13ns */
-	GPIO_writePin(LCD_E_PORT_ID,LCD_E_PIN_ID,LOGIC_HIGH); /* Enable LCD E=1 */
-	_delay_ms(1); /* delay for processing Tpw - Tdws = 190ns */
+	delay_ms(1); /* delay for processing Tdsw = 100ns */
+	GPIO_WritePinValue(LCD_E_PORT_ID,LCD_E_PIN_ID,LOW); /* Disable LCD E=0 */
+	delay_ms(1); /* delay for processing Th = 13ns */
+	GPIO_WritePinValue(LCD_E_PORT_ID,LCD_E_PIN_ID,HIGH); /* Enable LCD E=1 */
+	delay_ms(1); /* delay for processing Tpw - Tdws = 190ns */
 
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB4_PIN_ID,GET_BIT(data,0));
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB5_PIN_ID,GET_BIT(data,1));
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB6_PIN_ID,GET_BIT(data,2));
-	GPIO_writePin(LCD_DATA_PORT_ID,LCD_DB7_PIN_ID,GET_BIT(data,3));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB4_PIN_ID,READ_BIT(data,0));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB5_PIN_ID,READ_BIT(data,1));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB6_PIN_ID,READ_BIT(data,2));
+	GPIO_WritePinValue(LCD_DATA_PORT_ID,LCD_DB7_PIN_ID,READ_BIT(data,3));
 
-	_delay_ms(1); /* delay for processing Tdsw = 100ns */
-	GPIO_writePin(LCD_E_PORT_ID,LCD_E_PIN_ID,LOGIC_LOW); /* Disable LCD E=0 */
-	_delay_ms(1); /* delay for processing Th = 13ns */
+	delay_ms(1); /* delay for processing Tdsw = 100ns */
+	GPIO_WritePinValue(LCD_E_PORT_ID,LCD_E_PIN_ID,LOW); /* Disable LCD E=0 */
+	delay_ms(1); /* delay for processing Th = 13ns */
 
 #elif(LCD_DATA_BITS_MODE == 8)
+	uint8 counter = 0;
 	for (counter = 0; counter < 8 ; ++counter) {
 		Gpio_ConfigPin(LCD_DATA_PORT_ID, counter, GPIO_OUTPUT, GPIO_PUSH_PULL, GPIO_NO_PULL_UP_DOWN);
 		GPIO_WritePinValue(LCD_DATA_PORT_ID, counter, READ_BIT(data, counter));
