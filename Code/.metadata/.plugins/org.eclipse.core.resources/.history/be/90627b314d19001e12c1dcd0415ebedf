@@ -1,0 +1,313 @@
+/*
+ * main.c
+ *
+ *  Created on: Jun 30, 2023
+ *      Author: Anwar
+ */
+
+#include "main.h"
+
+uint8 current_task = 1;
+
+uint32 g_tick_count = 0;
+
+TCB user_tasks[MAX_TASKS];
+
+void main(void) {
+
+	Rcc_Init();
+	Rcc_Enable(RCC_GPIOA);
+	Rcc_Enable(RCC_GPIOB);
+	Rcc_Enable(RCC_GPIOC);
+
+	LED_Init(GPIO_A, 0);
+	LED_Init(GPIO_A, 1);
+	LED_Init(GPIO_A, 2);
+	LED_Init(GPIO_A, 3);
+
+	LCD_init();
+
+
+	enable_processor_faults();
+
+	init_scheduler_stack(SCHED_STACK_START);
+
+	init_tasks_stack();
+
+	init_systick_timer(TICK_HZ);
+
+
+	switch_sp_to_psp();
+
+	task1_handler();
+
+	while(1){
+
+	}
+}
+
+void idle_task(void){
+	while(1);
+}
+
+void task1_handler(void){
+	while(1){
+		LED_Activate(GPIO_A, 0, LED_ON);
+		delay_ms(DELAY_COUNT_1S);
+		LED_Activate(GPIO_A, 0, LED_OFF);
+		delay_ms(DELAY_COUNT_1S);
+	}
+}
+
+void task2_handler(void){
+	while(1){
+		LED_Activate(GPIO_A, 1, LED_ON);
+		delay_ms(DELAY_COUNT_500MS);
+		LED_Activate(GPIO_A, 1, LED_OFF);
+		delay_ms(DELAY_COUNT_500MS);
+	}
+}
+
+void task3_handler(void){
+	while(1){
+		LED_Activate(GPIO_A, 2, LED_ON);
+		delay_ms(DELAY_COUNT_250MS);
+		LED_Activate(GPIO_A, 2, LED_OFF);
+		delay_ms(DELAY_COUNT_250MS);
+	}
+}
+
+void task4_handler(void){
+	while(1){
+		LED_Activate(GPIO_A, 3, LED_ON);
+		delay_ms(DELAY_COUNT_125MS);
+		LED_Activate(GPIO_A, 3, LED_OFF);
+		delay_ms(DELAY_COUNT_125MS);
+	}
+}
+
+
+void schedual(void){
+
+	uint32 *pSCB_ICSR = (uint32*)SCB_ICSR;
+	*pSCB_ICSR |= PENDSV_SET_PENDING_BIT;
+
+}
+void task_delay(uint32 tick_count){
+	if (current_task) {
+		user_tasks[current_task].block_count = g_tick_count + tick_count;
+		user_tasks[current_task].current_state = TASK_BLOCKE_STATE;
+		schedual();
+	}
+}
+
+void init_systick_timer(uint32 tick_hz){
+
+	//Systick configuration.
+	uint32 *p_STK_load = (uint32*)STK_LOAD;
+	uint32 *p_STK_ctrl = (uint32*)SYSTICK_BASE_ADDRESS;
+
+
+	// Clear reload value register.
+	*p_STK_load &= ~(0X00FFFFFF);
+
+	// calculate count value foe systick.
+	uint32 count_value = ((SYSTICK_TIM_CLK/tick_hz)-1);
+
+	// Add the value to reload value register.
+	*p_STK_load |= count_value;
+
+	//do some settings
+	*p_STK_ctrl |= ( 1 << 1); //Enables SysTick exception request:
+	*p_STK_ctrl |= ( 1 << 2);  //Indicates the clock source, processor clock source
+
+	//enable the systick
+	*p_STK_ctrl |= ( 1 << 0); //enables the counter
+
+}
+
+__attribute__((naked)) void init_scheduler_stack(uint32 sched_top_of_stack){
+	__asm volatile ("MSR MSP, %0" : : "r" (sched_top_of_stack) : );
+	__asm volatile ("BX LR");
+}
+
+void init_tasks_stack(void){
+
+	uint8 i;
+
+	for (i = 0; i < MAX_TASKS; ++i) {
+		user_tasks[i].current_state = TASK_READY_STATE;
+	}
+
+	user_tasks[0].psp_value = IDLE_STACK_START;
+	user_tasks[1].psp_value = T1_STACK_START;
+	user_tasks[2].psp_value = T2_STACK_START;
+	user_tasks[3].psp_value = T3_STACK_START;
+	user_tasks[4].psp_value = T4_STACK_START;
+
+	user_tasks[0].task_handler = idle_task;
+	user_tasks[1].task_handler = task1_handler;
+	user_tasks[2].task_handler = task2_handler;
+	user_tasks[3].task_handler = task3_handler;
+	user_tasks[4].task_handler = task4_handler;
+
+	uint32 *pPSP;
+	for (i = 0; i < MAX_TASKS; ++i) {
+		pPSP = (uint32*)user_tasks[i].psp_value;
+
+		pPSP--;
+		*pPSP = DUMMY_XPSR; //set T bit one
+
+		pPSP--;
+		*pPSP = (uint32)user_tasks[i].task_handler; // Load PC
+
+		pPSP--;
+		*pPSP = 0xFFFFFFFD; // Load LR
+
+		for (uint8 j = 0; j < 13; ++j) {
+			pPSP--;
+			*pPSP = 0;
+		}
+
+		user_tasks[i].psp_value = (uint32)pPSP;
+
+	}
+
+}
+
+__attribute__((naked)) void PendSV_Handler(void){
+	/*Save the context of current task */
+	//1. Get current running task's PSP value
+	__asm volatile("MRS R0,PSP");
+	//2. Using that PSP value store SF2( R4 to R11)
+	__asm volatile("STMDB R0!,{R4-R11}");
+	//3. Save the current value of PSP
+	__asm volatile("PUSH {LR}");
+	__asm volatile("BL save_psp_value");
+
+
+	/*Retrieve the context of next task */
+	//1. Decide next task to run
+	__asm volatile("BL update_next_task");
+	//2. get its past PSP value
+	__asm volatile("BL get_psp_address");
+	//3. Using that PSP value retrieve SF2(R4 to R11)
+	__asm volatile("LDMIA R0!,{R4-R11}");
+	//4. update PSP and exit
+	__asm volatile("MSR PSP,R0");
+	__asm volatile("POP {LR}");
+	__asm volatile("BX LR");
+}
+
+
+void update_global_tick(void){
+	g_tick_count++;
+}
+
+void unblock_tasks(void){
+
+	for (uint8 loop = 1; loop < MAX_TASKS; ++loop) {
+
+		if (user_tasks[loop].current_state != TASK_READY_STATE) {
+
+			if (user_tasks[loop].block_count == g_tick_count) {
+				user_tasks[loop].current_state = TASK_READY_STATE;
+			}
+
+		}
+
+	}
+
+}
+
+void updeate_next_task(void){
+	uint8 state = TASK_BLOCKE_STATE;
+	for (uint8 loop = 0; loop < MAX_TASKS; ++loop) {
+		current_task++;
+		current_task %= MAX_TASKS;
+
+	}
+}
+
+void SysTick_Handler(void){
+
+	update_global_tick();
+
+	unblock_tasks();
+
+	schedual();
+
+}
+
+void enable_processor_faults(void){
+
+	uint32 *pSCB_SHCSR = (uint32*)SCB_SHCSR;
+	uint32 *pSCB_CCR = (uint32*)SCB_CCR;
+
+	*pSCB_SHCSR |= MEMORY_FAULT_ENABLE;
+	*pSCB_SHCSR |= BUS_FAULT_ENABLE;
+	*pSCB_SHCSR |= USAGE_FAULT_ENABLE;
+
+	*pSCB_CCR |= DIVISION_BY_ZERO_TRAP; // division by zero trap (usage fault)
+
+}
+
+// Implement the fault handlers
+void HardFault_Handler(void)
+{
+	LCD_clearScreen();
+	LCD_displayString("Exception : ");
+	LCD_displayStringRowColumn(1, 3, "Hardfault");
+	while(1);
+}
+
+
+void MemManage_Handler(void)
+{
+	LCD_clearScreen();
+	LCD_displayString("Exception : ");
+	LCD_displayStringRowColumn(1, 3, "MemManage");
+	while(1);
+}
+
+void BusFault_Handler(void)
+{
+	LCD_clearScreen();
+	LCD_displayString("Exception : ");
+	LCD_displayStringRowColumn(1, 3, "BusFault");
+	while(1);
+}
+
+void UsageFault_Handler (void){
+
+	LCD_clearScreen();
+	LCD_displayString("Exception : ");
+	LCD_displayStringRowColumn(1, 3, "UsageFault");
+	while(1);
+}
+
+uint32 get_psp_address(void){
+	return user_tasks[current_task].psp_value;
+}
+
+__attribute__((naked)) void switch_sp_to_psp(void){
+
+	__asm volatile("PUSH {LR}"); // Save LR to get back to the main().
+	__asm volatile("BL get_psp_address"); // get psp value and save it at r0 (register)
+	__asm volatile("MSR PSP, R0"); // move R0 value to psp.
+	__asm volatile("POP {LR}"); // pops back LR value
+
+	__asm volatile("MOV R0,#0X02"); // save 0x02 in R0
+	__asm volatile("MSR CONTROL, R0"); // activate process stack pointer.
+	__asm volatile("BX LR");  // return to main().
+
+}
+
+void save_psp_value(uint32 current_psp_value){
+	user_tasks[current_task].psp_value= current_psp_value;
+}
+
+void update_next_task(void){
+	current_task++;
+	current_task = current_task%MAX_TASKS;
+}
